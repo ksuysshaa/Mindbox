@@ -25,7 +25,7 @@ public class Triangle
         return Math.Sqrt(s * (s - _sideA) * (s - _sideB) * (s - _sideC));
     }
 
-    public bool IsRightTriangle()
+    public bool IsRightAngled()
     {
         double[] sides = { _sideA, _sideB, _sideC };
         Array.Sort(sides);
