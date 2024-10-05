@@ -1,0 +1,70 @@
+# Практического опыта работы с k8s не было, только с Docker,
+# поэтому для выполнения задания необходимо было провести ресерч в интернете
+# и более подробно изучить основные понятия и принципы работы k8s
+# 
+# После прочтения нескольких статей на habr, обращения к документации k8s и ChatGPT, 
+# было составлено следующее решение для задачи:
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mindbox-web-backend
+  labels:
+    app: mindbox-web-backend
+
+spec:
+  replicas: 3 # минимум 3 пода для стабильной работы под нагрузкой
+  selector:
+    matchLabels:
+      app: mindbox-web-backend
+  template:
+    metadata:
+      labels:
+        app: mindbox-web-backend
+    spec:
+      containers:
+        - name: mindbox-web-backend-container
+          image: mindbox-web-backend-container:latest
+          ports:
+            - containerPort: 80
+
+          # ресурсы, необходимые для стабильной работы приложения
+          # requests - минимальные ресурсы, которые под запросит
+          # limits - максимальные ресурсы, которые под может использовать
+          resources:
+            requests:
+              memory: "128Mi" # 128Mi - минимальное значение памяти, необходимое для стабильной работы приложения
+              cpu: "100m" # 0.1 - минимальное значение CPU, необходимое для стабильной работы приложения
+            limits:
+              memory: "256Mi" # 256Mi - увеличиваем значение памяти так как приложение требует больше памяти для обработки запросов
+              cpu: "400m" # 0.4- увеличиваем значение CPU так как требуется больше ресурсов для обработки первых запросов
+          
+          # readinessProbe - пока под не пройдет проверку, он не будет доступен для трафика
+          readinessProbe:
+            httpGet:
+              path: /api/health # считаем, что в нашем приложении есть endpoint /api/health, который сигнализирует о готовности приложения
+              port: 8080
+            initialDelaySeconds: 5 # ожидание 5 секунд перед началом проверки (с учетом времени инициализации)
+            periodSeconds: 10 # проверка каждые 5 секунд
+        
+          # startupProbe - проверка, что под инициализировался корректно перед приемом трафика
+          startupProbe:
+            httpGet:
+              path: /api/health
+              port: 8080
+            failureThreshold: 5  # количество неудачных попыток перед тем, как считать под "неуспешным"
+            periodSeconds: 5     # проверка каждые 5 секунд
+            initialDelaySeconds: 5 # ожидание 5 секунд перед первой проверкой
+
+      # используется политика AntiAffinity для запуска подов на разных нодах (заставляет k8s размещать поды на разных нодах)
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              labelSelector:
+                - key: app
+                  operator: In
+                  values:
+                    - mindbox-web-backend
+            topologyKey: "kubernetes.io/hostname"
+                      
